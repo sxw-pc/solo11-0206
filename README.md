@@ -30,3 +30,12 @@ python -B -m unittest discover -s tests -v
 客户采样坐标可跨母卷。按已核验的客户样带并集分母切分证据；存在无法定位或未核验的样带时全额暂挂。确认缺陷落在唯一当前签发子卷、确切剪除段或其他待决区域，分别进入子卷、剪除和暂挂桶。扫描足以证明样区无已确认目标缺陷时另列该桶。报告附每块区域的来源标签，采用最大余数法分配整数分，同余数按桶 ID 排序。
 
 样例中 A、C 有当前签发，B、D 扣留。`D-cross` 实际面积 400 mm²，跨两卷各 200 mm²。`claim-7` 的 1001 分分到 A 125、C 175、剪除 200、暂挂 501。补录 `correction.json` 后 A、C 签发均失效，`claim-7` 剩余有效剪除证据 25 分，976 分暂挂。`recompute` 从工位原始修订和签发凭证重建这些输出。
+
+## 纸浆纤维显微采录
+
+```sh
+python -B -m paper_web --db fibre.sqlite fibre-capture fixtures/fibre-tray.json
+python -B -m paper_web --db fibre.sqlite fibre-report scope-1
+```
+
+从同一显微镜比例尺的独立直线迹线采录纤维长度。原件按图像编号和修订留存，统计为向下取整的微米长度直方图。

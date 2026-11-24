@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 SCHEMA = {
+    'fibre_image': 'image TEXT',
     'epoch': 'base INTEGER, first INTEGER, last INTEGER',
     'reel': 'epoch TEXT, lo INTEGER, hi INTEGER, width INTEGER',
     'incident': 'epoch TEXT, lo INTEGER, hi INTEGER, kind TEXT',

@@ -1,0 +1,11 @@
+{
+  "id": "scope-1",
+  "rev": 1,
+  "tray": "pulp-49",
+  "um_per_pixel": 10,
+  "traces": [
+    {"id": "f1", "start": [2, 3], "stop": [5, 7]},
+    {"id": "f2", "start": [0, 0], "stop": [6, 0]},
+    {"id": "f3", "start": [8, 8], "stop": [8, 13]}
+  ]
+}

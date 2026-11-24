@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .claims import Claims
 from .finishing import Finishing, issue, weigh
+from .fibre_capture import receive as receive_fibre, report as report_fibre
 from .inspection import Inspection
 from .machine import Machine
 from .store import connect, ingest, transaction
@@ -47,6 +48,8 @@ def parser():
     sub = cli.add_subparsers(dest='command', required=True)
     sub.add_parser('demo').add_argument('fixture')
     sub.add_parser('ingest').add_argument('file')
+    sub.add_parser('fibre-capture').add_argument('file')
+    sub.add_parser('fibre-report').add_argument('id')
     for command in ('reel', 'scan', 'finish', 'claim', 'plan'):
         sub.add_parser(command).add_argument('id')
     sub.add_parser('recompute')
@@ -67,11 +70,15 @@ def run(db, args):
         return demo(db, args.fixture)
     if cmd == 'ingest':
         return ingest(db, json.loads(Path(args.file).read_text(encoding='utf-8-sig')))
+    if cmd == 'fibre-capture':
+        return receive_fibre(db, json.loads(Path(args.file).read_text(encoding='utf-8-sig')))
     if cmd == 'weigh':
         return weigh(db, args.lane, args.ticket, args.rev, args.grams, args.plan)
     if cmd == 'issue':
         return {'issue': issue(db, build, args.lane, args.basis, args.operator)}
     with transaction(db, write=False):
+        if cmd == 'fibre-report':
+            return report_fibre(db, args.id)
         if cmd == 'recompute':
             return recompute(db)
         machine, scanner, finishing, claims = build(db)
@@ -84,7 +91,7 @@ def main():
     cli = parser()
     args = cli.parse_args()
     try:
-        with closing(connect(args.db, create=args.command in ('demo', 'ingest'))) as db:
+        with closing(connect(args.db, create=args.command in ('demo', 'ingest', 'fibre-capture'))) as db:
             result = run(db, args)
     except (ValueError, KeyError, OSError, sqlite3.Error) as exc:
         cli.exit(2, f'error: {exc}\n')
