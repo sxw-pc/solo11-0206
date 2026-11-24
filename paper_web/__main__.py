@@ -4,6 +4,7 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
+from .archive_capture import receive as receive_archive, restore as restore_archive
 from .claims import Claims
 from .finishing import Finishing, issue, weigh
 from .inspection import Inspection
@@ -47,6 +48,10 @@ def parser():
     sub = cli.add_subparsers(dest='command', required=True)
     sub.add_parser('demo').add_argument('fixture')
     sub.add_parser('ingest').add_argument('file')
+    sub.add_parser('archive-capture').add_argument('file')
+    archive = sub.add_parser('archive-restore')
+    archive.add_argument('read')
+    archive.add_argument('block')
     for command in ('reel', 'scan', 'finish', 'claim', 'plan'):
         sub.add_parser(command).add_argument('id')
     sub.add_parser('recompute')
@@ -67,11 +72,15 @@ def run(db, args):
         return demo(db, args.fixture)
     if cmd == 'ingest':
         return ingest(db, json.loads(Path(args.file).read_text(encoding='utf-8-sig')))
+    if cmd == 'archive-capture':
+        return receive_archive(db, json.loads(Path(args.file).read_text(encoding='utf-8-sig')))
     if cmd == 'weigh':
         return weigh(db, args.lane, args.ticket, args.rev, args.grams, args.plan)
     if cmd == 'issue':
         return {'issue': issue(db, build, args.lane, args.basis, args.operator)}
     with transaction(db, write=False):
+        if cmd == 'archive-restore':
+            return restore_archive(db, args.read, args.block)
         if cmd == 'recompute':
             return recompute(db)
         machine, scanner, finishing, claims = build(db)
@@ -84,7 +93,7 @@ def main():
     cli = parser()
     args = cli.parse_args()
     try:
-        with closing(connect(args.db, create=args.command in ('demo', 'ingest'))) as db:
+        with closing(connect(args.db, create=args.command in ('demo', 'ingest', 'archive-capture'))) as db:
             result = run(db, args)
     except (ValueError, KeyError, OSError, sqlite3.Error) as exc:
         cli.exit(2, f'error: {exc}\n')
