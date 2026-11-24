@@ -1,0 +1,30 @@
+{
+  "capture": [
+    {"type":"reel","id":"R2","rev":1,"epoch":"reset","lo":5,"hi":105,"width":100},
+    {"type":"epoch","id":"original","rev":1,"base":0,"first":1000,"last":1120},
+    {"type":"epoch","id":"reset","rev":1,"base":100,"first":5,"last":105},
+    {"type":"reel","id":"R1","rev":1,"epoch":"original","lo":1000,"hi":1100,"width":100},
+    {"type":"incident","id":"join","rev":1,"epoch":"original","lo":1095,"hi":1103,"kind":"splice"},
+    {"type":"incident","id":"tear","rev":1,"epoch":"reset","lo":75,"hi":79,"kind":"break"},
+    {"type":"scan","id":"left-camera","rev":1,"epoch":"original","lo":1000,"hi":1120,"x0":0,"x1":100,"verified":1},
+    {"type":"scan","id":"reset-full","rev":1,"epoch":"reset","lo":5,"hi":55,"x0":0,"x1":100,"verified":1},
+    {"type":"scan","id":"reset-narrow","rev":1,"epoch":"reset","lo":55,"hi":105,"x0":0,"x1":80,"verified":1},
+    {"type":"hit","id":"smudge-1","rev":1,"scan":"left-camera","defect":"D-cross","lo":1090,"hi":1110,"x0":40,"x1":60,"grade":"observe"},
+    {"type":"hit","id":"smudge-2","rev":1,"scan":"reset-full","defect":"D-cross","lo":5,"hi":10,"x0":45,"x1":55,"grade":"observe"},
+    {"type":"hit","id":"splice-ridge","rev":1,"scan":"left-camera","defect":"D-ridge","lo":1095,"hi":1103,"x0":0,"x1":20,"grade":"reject"},
+    {"type":"lane","id":"A","rev":1,"reel":"R1","x0":0,"x1":50,"target":500,"tolerance":10},
+    {"type":"lane","id":"B","rev":1,"reel":"R1","x0":50,"x1":100,"target":500,"tolerance":10},
+    {"type":"lane","id":"C","rev":1,"reel":"R2","x0":0,"x1":50,"target":500,"tolerance":10},
+    {"type":"lane","id":"D","rev":1,"reel":"R2","x0":50,"x1":100,"target":500,"tolerance":10},
+    {"type":"cut","id":"A-tail","rev":1,"lane":"A","lo":95,"hi":100},
+    {"type":"cut","id":"C-head","rev":1,"lane":"C","lo":0,"hi":3},
+    {"type":"cut","id":"C-tear","rev":1,"lane":"C","lo":70,"hi":74},
+    {"type":"claim","id":"claim-7","rev":1,"defect":"D-cross","cents":1001},
+    {"type":"sample","id":"customer-strip","rev":1,"claim":"claim-7","epoch":"original","lo":1090,"hi":1110,"x0":40,"x1":60,"verified":1},
+    {"type":"sample","id":"customer-repeat","rev":1,"claim":"claim-7","epoch":"reset","lo":5,"hi":10,"x0":45,"x1":55,"verified":1},
+    {"type":"claim","id":"claim-pending","rev":1,"defect":"D-cross","cents":75},
+    {"type":"sample","id":"unreadable-counter","rev":1,"claim":"claim-pending","epoch":"lost","lo":0,"hi":5,"x0":0,"x1":10,"verified":1}
+  ],
+  "weights":{"A":490,"B":512,"C":505,"D":500},
+  "issue":["A","C"]
+}

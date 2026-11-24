@@ -1,0 +1,4 @@
+[
+  {"type":"scan","id":"left-camera","rev":2,"epoch":"original","lo":1000,"hi":1120,"x0":0,"x1":100,"verified":0},
+  {"type":"cut","id":"C-head","rev":2,"lane":"C","lo":0,"hi":2}
+]
