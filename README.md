@@ -30,3 +30,12 @@ python -B -m unittest discover -s tests -v
 客户采样坐标可跨母卷。按已核验的客户样带并集分母切分证据；存在无法定位或未核验的样带时全额暂挂。确认缺陷落在唯一当前签发子卷、确切剪除段或其他待决区域，分别进入子卷、剪除和暂挂桶。扫描足以证明样区无已确认目标缺陷时另列该桶。报告附每块区域的来源标签，采用最大余数法分配整数分，同余数按桶 ID 排序。
 
 样例中 A、C 有当前签发，B、D 扣留。`D-cross` 实际面积 400 mm²，跨两卷各 200 mm²。`claim-7` 的 1001 分分到 A 125、C 175、剪除 200、暂挂 501。补录 `correction.json` 后 A、C 签发均失效，`claim-7` 剩余有效剪除证据 25 分，976 分暂挂。`recompute` 从工位原始修订和签发凭证重建这些输出。
+
+## 废水留样泵
+
+```sh
+python -B -m paper_web --db water.sqlite water-capture fixtures/water-sampler.json
+python -B -m paper_web --db water.sqlite water-sample water-one
+```
+
+专用进水管的封闭包保存采样器、进水口、每脉冲毫升数、计数器快照和封瓶边界。两个边界都要有读数。瓶中体积以计数差计算，瓶外的输送不计入任何留样瓶。原件可以重放并按编号、修订复查。

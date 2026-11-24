@@ -1,0 +1,17 @@
+{
+  "id": "water-one",
+  "rev": 1,
+  "sampler": "sampler-a",
+  "inlet": "east-drain",
+  "ml_per_pulse": 5,
+  "readings": [
+    {"at": 0, "count": 100},
+    {"at": 10, "count": 105},
+    {"at": 20, "count": 109},
+    {"at": 30, "count": 116}
+  ],
+  "bottles": [
+    {"id": "east-1", "open": 0, "close": 10, "capacity_ml": 50},
+    {"id": "east-2", "open": 20, "close": 30, "capacity_ml": 50}
+  ]
+}
