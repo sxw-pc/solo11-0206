@@ -5,7 +5,7 @@ from contextlib import closing
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from paper_web.__main__ import build, demo, recompute
+from paper_web.__main__ import build, demo, parser, recompute, run
 from paper_web.finishing import issue, weigh
 from paper_web.store import connect, ingest, transaction
 
@@ -120,3 +120,122 @@ class PaperWebTests(unittest.TestCase):
             with self.assertRaises(sqlite3.OperationalError):
                 other.execute('SELECT * FROM temporary_results')
         self.assertEqual(demo(self.db, FIXTURE), self.sample)
+
+
+class TrialTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = self.enterContext(TemporaryDirectory(dir=ROOT))
+        self.path = Path(self.tmp) / 'trial.sqlite'
+        self.db = self.enterContext(closing(connect(self.path, create=True)))
+        ingest(self.db, [
+            {'type': 'epoch', 'id': 'e', 'rev': 1, 'base': 0, 'first': 0, 'last': 100},
+            {'type': 'reel', 'id': 'W', 'rev': 1, 'epoch': 'e', 'lo': 0, 'hi': 100, 'width': 20},
+            {'type': 'lane', 'id': 'L', 'rev': 1, 'reel': 'W', 'x0': 0, 'x1': 10,
+             'target': 100, 'tolerance': 5},
+            {'type': 'lane', 'id': 'R', 'rev': 1, 'reel': 'W', 'x0': 10, 'x1': 20,
+             'target': 100, 'tolerance': 5},
+            {'type': 'scan', 'id': 'cam', 'rev': 1, 'epoch': 'e', 'lo': 0, 'hi': 100,
+             'x0': 0, 'x1': 20, 'verified': 1},
+            {'type': 'hit', 'id': 'mark', 'rev': 1, 'scan': 'cam', 'defect': 'D',
+             'lo': 48, 'hi': 52, 'x0': 0, 'x1': 10, 'grade': 'reject'},
+        ])
+        self.orders = [
+            {'id': 'left-order', 'lane': 'L', 'lengths': [48]},
+            {'id': 'right-order', 'lane': 'R', 'lengths': [100]},
+        ]
+
+    def request(self, orders, **changes):
+        base = {'reel': 'W', 'lanes': ['L', 'R'], 'points': [48, 52],
+                'min_gap': 1, 'max_drops': 1, 'orders': orders}
+        return {**base, **changes}
+
+    def trial(self, request):
+        with transaction(self.db, write=False):
+            return build(self.db)[2].trial(request)
+
+    def test_pair_cannot_share_one_pass_and_each_deferral_works(self):
+        result = self.trial(self.request(self.orders))
+        self.assertEqual(result['status'], 'infeasible')
+        self.assertEqual(result['group'], ['left-order', 'right-order'])
+        alternatives = {tuple(alt['deferred']): alt for alt in result['alternatives']}
+        self.assertEqual(set(alternatives), {('left-order',), ('right-order',)})
+
+        drop_at_48 = alternatives[('right-order',)]
+        self.assertEqual(drop_at_48['drops'], [48])
+        self.assertEqual(drop_at_48['assignments'],
+                         [{'order': 'left-order', 'lane': 'L', 'lo': 0, 'hi': 48}])
+        left_segments = [seg for seg in drop_at_48['segments'] if seg['lane'] == 'L']
+        self.assertEqual(left_segments[1]['reasons'], ['reject:mark'])
+        severed = [seg for seg in drop_at_48['segments'] if seg['lane'] == 'R']
+        self.assertEqual([(seg['lo'], seg['hi'], seg['order']) for seg in severed],
+                         [(0, 48, None), (48, 100, None)])
+
+        whole_web = alternatives[('left-order',)]
+        self.assertEqual(whole_web['drops'], [])
+        self.assertEqual(whole_web['assignments'],
+                         [{'order': 'right-order', 'lane': 'R', 'lo': 0, 'hi': 100}])
+
+    def test_shared_drop_when_right_also_accepts_48(self):
+        orders = [self.orders[0], {'id': 'right-order', 'lane': 'R', 'lengths': [100, 48]}]
+        result = self.trial(self.request(orders))
+        self.assertEqual(result['status'], 'scheduled')
+        self.assertEqual(result['drops'], [48])
+        self.assertEqual(result['assignments'],
+                         [{'order': 'left-order', 'lane': 'L', 'lo': 0, 'hi': 48},
+                          {'order': 'right-order', 'lane': 'R', 'lo': 0, 'hi': 48}])
+
+    def test_scan_withdrawal_leaves_orders_without_evidence(self):
+        ingest(self.db, [{'type': 'scan', 'id': 'cam', 'rev': 2, 'epoch': 'e',
+                          'lo': 0, 'hi': 100, 'x0': 0, 'x1': 20, 'verified': 0}])
+        pair = self.trial(self.request(self.orders))
+        self.assertEqual(pair['status'], 'infeasible')
+        self.assertEqual(len(pair['group']), 1)
+        for order in self.orders:
+            solo = self.trial(self.request([order]))
+            self.assertEqual(solo['status'], 'infeasible')
+            self.assertEqual(solo['group'], [order['id']])
+            self.assertIn('scan-gap', solo['detail'][0]['reasons'])
+
+    def test_unlocated_reel_and_knife_conflict_report_reasons(self):
+        ingest(self.db, [{'type': 'lane', 'id': 'R', 'rev': 2, 'reel': 'W',
+                          'x0': 5, 'x1': 15, 'target': 100, 'tolerance': 5}])
+        conflict = self.trial(self.request(self.orders))
+        self.assertEqual(conflict['status'], 'blocked')
+        self.assertIn('knife-conflict:L:R', conflict['reasons'])
+        ingest(self.db, [{'type': 'reel', 'id': 'W', 'rev': 2, 'epoch': 'gone',
+                          'lo': 0, 'hi': 100, 'width': 20}])
+        unlocated = self.trial(self.request(self.orders))
+        self.assertEqual(unlocated['status'], 'blocked')
+        self.assertEqual(unlocated['reasons'], ['unlocated-reel'])
+
+    def test_spacing_and_count_apply_to_one_shared_sequence(self):
+        orders = [{'id': 'o1', 'lane': 'L', 'lengths': [48]},
+                  {'id': 'o2', 'lane': 'L', 'lengths': [48]}]
+        tight = self.trial(self.request(orders, min_gap=10, max_drops=2))
+        self.assertEqual(tight['status'], 'infeasible')
+        self.assertEqual(tight['group'], ['o1', 'o2'])
+        capped = self.trial(self.request(orders, min_gap=1, max_drops=1))
+        self.assertEqual(capped['status'], 'infeasible')
+        shared = self.trial(self.request(orders, min_gap=4, max_drops=2))
+        self.assertEqual(shared['status'], 'scheduled')
+        self.assertEqual(shared['drops'], [48, 52])
+        self.assertEqual(shared['assignments'],
+                         [{'order': 'o1', 'lane': 'L', 'lo': 0, 'hi': 48},
+                          {'order': 'o2', 'lane': 'L', 'lo': 52, 'hi': 100}])
+
+    def test_request_limits(self):
+        with self.assertRaisesRegex(ValueError, 'twelve internal knife points'):
+            self.trial(self.request([], points=list(range(1, 14))))
+        with self.assertRaisesRegex(ValueError, 'at most six lanes'):
+            self.trial(self.request([], lanes=['L'] * 7))
+        with self.assertRaisesRegex(ValueError, 'at most six orders'):
+            self.trial(self.request([{'id': f'o{i}', 'lane': 'L', 'lengths': [48]}
+                                     for i in range(7)]))
+
+    def test_cli_trial_entry(self):
+        ticket = Path(self.tmp) / 'trial.json'
+        ticket.write_text(json.dumps(self.request(self.orders)), encoding='utf-8')
+        args = parser().parse_args(['--db', str(self.path), 'trial', str(ticket)])
+        result = run(self.db, args)
+        self.assertEqual(result['status'], 'infeasible')
+        self.assertEqual(result['group'], ['left-order', 'right-order'])

@@ -49,6 +49,7 @@ def parser():
     sub.add_parser('ingest').add_argument('file')
     for command in ('reel', 'scan', 'finish', 'claim', 'plan'):
         sub.add_parser(command).add_argument('id')
+    sub.add_parser('trial').add_argument('file')
     sub.add_parser('recompute')
     weight = sub.add_parser('weigh')
     for key in ('lane', 'ticket', 'plan'):
@@ -75,6 +76,9 @@ def run(db, args):
         if cmd == 'recompute':
             return recompute(db)
         machine, scanner, finishing, claims = build(db)
+        if cmd == 'trial':
+            request = json.loads(Path(args.file).read_text(encoding='utf-8-sig'))
+            return finishing.trial(request)
         action = {'reel': machine.assess, 'scan': scanner.assess, 'finish': finishing.assess,
                   'claim': claims.assess, 'plan': finishing.plan}[cmd]
         return action(args.id)
