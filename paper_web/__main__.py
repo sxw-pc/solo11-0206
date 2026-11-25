@@ -4,6 +4,7 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
+from .claim_receipts import Receipts, receive, settle
 from .claims import Claims
 from .finishing import Finishing, issue, weigh
 from .inspection import Inspection
@@ -58,6 +59,13 @@ def parser():
     sign = sub.add_parser('issue')
     for key in ('lane', 'basis', 'operator'):
         sign.add_argument(key)
+    sub.add_parser('receipts').add_argument('file')
+    sub.add_parser('receipt').add_argument('id')
+    sub.add_parser('ledger')
+    post = sub.add_parser('settle')
+    post.add_argument('receipt')
+    post.add_argument('allocation')
+    post.add_argument('operator')
     return cli
 
 
@@ -71,6 +79,15 @@ def run(db, args):
         return weigh(db, args.lane, args.ticket, args.rev, args.grams, args.plan)
     if cmd == 'issue':
         return {'issue': issue(db, build, args.lane, args.basis, args.operator)}
+    if cmd == 'receipts':
+        return receive(db, json.loads(Path(args.file).read_text(encoding='utf-8-sig')))
+    if cmd == 'settle':
+        allocation = json.loads(args.allocation)
+        return settle(db, build, args.receipt, allocation, args.operator)
+    if cmd in ('receipt', 'ledger'):
+        with transaction(db, write=False):
+            receipts = Receipts(db, build(db)[3])
+            return receipts.overview() if cmd == 'ledger' else receipts.assess(args.id)
     with transaction(db, write=False):
         if cmd == 'recompute':
             return recompute(db)
@@ -84,9 +101,9 @@ def main():
     cli = parser()
     args = cli.parse_args()
     try:
-        with closing(connect(args.db, create=args.command in ('demo', 'ingest'))) as db:
+        with closing(connect(args.db, create=args.command in ('demo', 'ingest', 'receipts'))) as db:
             result = run(db, args)
-    except (ValueError, KeyError, OSError, sqlite3.Error) as exc:
+    except (ValueError, KeyError, OSError, sqlite3.Error, json.JSONDecodeError) as exc:
         cli.exit(2, f'error: {exc}\n')
     print(json.dumps(result, sort_keys=True, ensure_ascii=True))
 
